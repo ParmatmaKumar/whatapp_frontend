@@ -9,7 +9,7 @@ export const useSocket = () => {
 }
 
 export const SocketProvider = (props) => {
-    const socket = useMemo(()=> io('https://whatapp-backend-eta.vercel.app'),[]);
+    const socket = useMemo(()=> io('https://whatapp-backend-gx0y.onrender.com'),[]);
 
   return (
     <SocketContext.Provider value={socket}>
