@@ -57,66 +57,87 @@ export const Room = () => {
 
     // When user clicks "Call"
     const handleCallUser = useCallback(async () => {
+        try {
+            // Get camera + mic access
+            const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
 
-        // Get camera + mic access
-        const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+            setMyStream(stream); // save local stream
 
-        setMyStream(stream); // save local stream
+            addTracksToPeer(stream); // add tracks to peer connection
 
-        addTracksToPeer(stream); // add tracks to peer connection
+            const offer = await peer.createOffer(); // create offer
 
-        const offer = await peer.createOffer(); // create offer
-
-        // Send call request to remote user
-        socket.emit("callUser", { to: remoteSocetId, offer });
+            // Send call request to remote user
+            socket.emit("callUser", { to: remoteSocetId, offer });
+        } catch (error) {
+            console.error("Error initiating call:", error);
+        }
     }, [remoteSocetId, socket, addTracksToPeer]);
 
     // When receiving an incoming call
     const handleincommingCall = useCallback(async ({ from, offer }) => {
+        try {
+            setRemoteSocketId(from); // store caller ID
 
-        setRemoteSocketId(from); // store caller ID
+            // Get local media
+            const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
 
-        // Get local media
-        const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+            setMyStream(stream); // save local stream
 
-        setMyStream(stream); // save local stream
+            addTracksToPeer(stream); // add tracks
 
-        addTracksToPeer(stream); // add tracks
+            // Create answer for received offer
+            const answer = await peer.getAnswer(offer);
 
-        // Create answer for received offer
-        const answer = await peer.getAnswer(offer);
-
-        // Send answer back to caller
-        socket.emit("callAccepted", { to: from, answer });
+            // Send answer back to caller
+            socket.emit("callAccepted", { to: from, answer });
+        } catch (error) {
+            console.error("Error handling incoming call:", error);
+        }
     }, [socket, addTracksToPeer]);
 
     // Send streams manually (after call setup)
     const sendStreams = useCallback(async () => {
         if (!myStream) return;
 
-        addTracksToPeer(myStream); // ensure tracks added
-
-        await doRenegotiate(); // renegotiate connection
+        try {
+            addTracksToPeer(myStream); // ensure tracks added
+            await doRenegotiate(); // renegotiate connection
+        } catch (error) {
+            console.error("Error sending streams:", error);
+        }
     }, [myStream, addTracksToPeer, doRenegotiate]);
 
     // When call is accepted by remote user
-    const handleCallAccepted = useCallback(({ answer }) => {
-        peer.setRemoteDescription(answer); // set remote SDP
-        console.log("Call accepted !");
+    const handleCallAccepted = useCallback(async ({ answer }) => {
+        try {
+            await peer.setRemoteDescription(answer); // set remote SDP
+            console.log("Call accepted !");
+        } catch (error) {
+            console.error("Error setting remote description:", error);
+        }
     }, []);
 
     // Handle negotiation request from remote peer
     const handleNegotiationIncoming = useCallback(async ({ from, offer }) => {
+        try {
+            const answer = await peer.getAnswer(offer); // create answer
 
-        const answer = await peer.getAnswer(offer); // create answer
-
-        // Send back answer
-        socket.emit("peer-negotiation-done", { to: from, answer });
+            // Send back answer
+            socket.emit("peer-negotiation-done", { to: from, answer });
+        } catch (error) {
+            console.error("Error handling negotiation:", error);
+        }
     }, [socket]);
 
     // Final step of negotiation
     const handleNegotiationFinal = useCallback(async ({ answer }) => {
-        await peer.setRemoteDescription(answer); // finalize connection
+        try {
+            await peer.setRemoteDescription(answer); // finalize connection
+            console.log("Negotiation complete");
+        } catch (error) {
+            console.error("Error finalizing negotiation:", error);
+        }
     }, []);
 
     // Listen for incoming media tracks (remote video/audio)
