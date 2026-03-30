@@ -297,19 +297,46 @@ export const Room = () => {
             myStream.getTracks().forEach(track => track.stop());
         }
 
-        const newStream = await navigator.mediaDevices.getUserMedia({
-            video: { deviceId: { exact: nextDeviceId } },
-            audio: true
-        });
-        setMyStream(newStream);
+        try {
+            const newStream = await navigator.mediaDevices.getUserMedia({
+                video: { deviceId: { exact: nextDeviceId } },
+                audio: true
+            });
+            setMyStream(newStream);
 
-        const videoTrack = newStream.getVideoTracks()[0];
-        const sender = peer.peer.getSenders().find(s => s.track.kind === 'video');
-        if (sender) {
-            sender.replaceTrack(videoTrack);
+            const videoTrack = newStream.getVideoTracks()[0];
+            const sender = peer.peer.getSenders().find(s => s.track.kind === 'video');
+            if (sender) {
+                sender.replaceTrack(videoTrack);
+            }
+
+            await doRenegotiate();
+        } catch (error) {
+            console.error("Error switching camera:", error);
+            // Fallback: try to get any available camera
+            try {
+                const fallbackStream = await navigator.mediaDevices.getUserMedia({
+                    video: true,
+                    audio: true
+                });
+                setMyStream(fallbackStream);
+
+                const videoTrack = fallbackStream.getVideoTracks()[0];
+                const sender = peer.peer.getSenders().find(s => s.track.kind === 'video');
+                if (sender) {
+                    sender.replaceTrack(videoTrack);
+                }
+
+                await doRenegotiate();
+                // Update currentCamera to the actual device being used
+                const actualDeviceId = fallbackStream.getVideoTracks()[0].getSettings().deviceId;
+                setCurrentCamera(actualDeviceId);
+            } catch (fallbackError) {
+                console.error("Fallback camera access also failed:", fallbackError);
+                // If fallback also fails, show user-friendly error
+                alert("Unable to access camera. Please check camera permissions and ensure no other application is using the camera.");
+            }
         }
-
-        await doRenegotiate();
     }, [videoDevices, currentCamera, myStream, doRenegotiate]);
     // End connection
     const endConnection = useCallback(() => {
@@ -511,9 +538,8 @@ export const Room = () => {
                             <video
                                 ref={localVideoRef}
                                 autoPlay
-                                muted // prevent echo
                                 className="rounded-lg w-full h-48 object-cover"
-                                style={{ transform: 'scaleX(-1)' }} // Mirror effect for self-view
+                                style={isScreenSharing ? { transform: 'scaleX(1)' } : { transform: 'scaleX(-1)' }}
                             />
                         </div>
                     )}
@@ -527,7 +553,7 @@ export const Room = () => {
                                 ref={remoteVideoRef}
                                 autoPlay
                                 className="rounded-lg w-full h-48 object-cover"
-                                style={{ transform: 'scaleX(-1)' }}
+                                style={isScreenSharing ? {transform: 'scaleX(1)' } : { transform: 'scaleX(-1)' }}
                             />
                         </div>
                     )}
